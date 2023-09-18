@@ -13,11 +13,7 @@ eyre = "0.6.8"
 thiserror = "1.0.31"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm14-0"] }
 itertools = "0.10.3"
-revm = "1.7.0"
-
+revm = { git = "https://github.com/bluealloy/revm" }
 # for testing:
 rand = "0.8.5"
 paste = "1.0.7"
-
-[patch.crates-io]
-revm = { git = 'https://github.com/joachimneu/revm-hacking1' }
