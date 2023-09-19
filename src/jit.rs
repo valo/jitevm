@@ -1,6 +1,7 @@
 use inkwell::context::Context;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
+use revm::primitives::keccak256;
 use std::collections::HashMap;
 use std::convert::From;
 use thiserror::Error;
@@ -455,13 +456,33 @@ impl<'ctx> JitEvmEngine<'ctx> {
         0
     }
 
-    pub extern "C" fn callback_exp(exectx: usize, sp: usize) -> u64 {
+    pub extern "C" fn callback_exp(_exectx: usize, sp: usize) -> u64 {
         let base: &mut U256 =
             unsafe { &mut *((sp - 1 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
         let power: &mut U256 =
             unsafe { &mut *((sp - 2 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
 
-        *base = base.overflowing_pow(*power).0;
+        *power = base.overflowing_pow(*power).0;
+
+        0
+    }
+
+    pub extern "C" fn callback_sha3(exectx: usize, sp: usize) -> u64 {
+        let context: &mut JitEvmExecutionContext = unsafe { &mut *(exectx as *mut _) };
+        let memory: &mut [u8; 4096000] = unsafe { &mut *(context.memory as *mut _) };
+
+        let offset: &mut U256 =
+            unsafe { &mut *((sp - 1 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
+        let size: &mut U256 =
+            unsafe { &mut *((sp - 2 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
+
+        // TODO: Fail if these are not proper 64-bit values!
+        let offset_int = offset.as_limbs()[0] as usize;
+        let size_int = size.as_limbs()[0] as usize;
+
+        let hash = keccak256(&memory[offset_int..offset_int + size_int]);
+
+        *size = hash.into();
 
         0
     }
@@ -515,6 +536,17 @@ impl<'ctx> JitEvmEngine<'ctx> {
             let cb_func = self.module.add_function("callback_exp", cb_type, None);
             self.execution_engine
                 .add_global_mapping(&cb_func, JitEvmEngine::callback_exp as usize);
+            cb_func
+        };
+
+        let callback_sha3_func = {
+            // SHA3
+            let cb_type = self
+                .type_retval
+                .fn_type(&[self.type_ptrint.into(), self.type_ptrint.into()], false);
+            let cb_func = self.module.add_function("callback_sha3", cb_type, None);
+            self.execution_engine
+                .add_global_mapping(&cb_func, JitEvmEngine::callback_sha3 as usize);
             cb_func
         };
 
@@ -659,6 +691,12 @@ impl<'ctx> JitEvmEngine<'ctx> {
                     self.builder.build_return(Some(&value_int));
                     continue;
                 }
+                Caller => {
+                    // TODO: take the caller from the current context
+                    let val = self.type_stackel.const_int(0, false);
+                    let book = self.build_stack_push(book, val);
+                    book
+                }
                 Callvalue => {
                     let val = self.type_stackel.const_int(0, false);
                     let book = self.build_stack_push(book, val);
@@ -741,6 +779,27 @@ impl<'ctx> JitEvmEngine<'ctx> {
                     let (book, val) = self.build_memory_read(book, idx);
                     let book = self.build_stack_push(book, val);
 
+                    book
+                }
+                Sha3 => {
+                    let _retval = self
+                        .builder
+                        .build_call(
+                            callback_sha3_func,
+                            &[book.context.into(), book.sp.into()],
+                            "",
+                        )
+                        .try_as_basic_value()
+                        .left()
+                        .unwrap()
+                        .into_int_value();
+                    // The result will be in the stack at the second position, so we need to
+                    // pop the base out
+                    let (book, _) = self.build_stack_pop(book);
+                    book
+                }
+                Log2 => {
+                    // TODO: implement
                     book
                 }
                 Jump => {
@@ -978,6 +1037,9 @@ impl<'ctx> JitEvmEngine<'ctx> {
                         .left()
                         .unwrap()
                         .into_int_value();
+                    // The result will be in the stack at the second position, so we need to
+                    // pop the base out
+                    let (book, _) = self.build_stack_pop(book);
                     book
                 }
                 // Smod => { op2_llvmnativei256_operation!(self, book, build_int_signed_rem) },
@@ -1108,6 +1170,17 @@ impl<'ctx> JitEvmEngine<'ctx> {
                     }
 
                     continue; // skip auto-generated jump to next instruction
+                }
+
+                Invalid => {
+                    let value_int = self.type_ptrint.const_int(0, false);
+                    self.builder.build_return(Some(&value_int));
+                    continue;
+                }
+
+                Unknown(_op) => {
+                    // TODO: Figure out what to do in these cases
+                    book
                 }
 
                 _ => {
