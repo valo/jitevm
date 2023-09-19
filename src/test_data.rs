@@ -8,7 +8,7 @@ pub fn get_code_ops_fibonacci() -> Vec<EvmOp> {
 
     vec![
         // input to the program (which fib number we want)
-        Push(2, U256::zero() + 10000), // 5 (needs to be >= 3)
+        Push(2, U256::zero() + 15000), // 5 (needs to be >= 3)
         // 1st/2nd fib number
         Push(1, U256::zero()),
         Push(1, U256::one()),
@@ -123,7 +123,13 @@ pub fn get_code_ops_fibonacci_repetitions() -> Vec<EvmOp> {
         Jump,
         // 48
         Jumpdest,
-        Stop,
+        // Move the top of the stack to memory at offset 0
+        Push(1, U256::zero()),
+        Mstore,
+        // Return the data from memory at offset 0
+        Push(1, U256::zero() + 32),
+        Push(1, U256::zero()),
+        Return,
     ]
 }
 

@@ -1,3 +1,4 @@
 /target
 jit_*.asm
 jit_*.ll
+.vscode
