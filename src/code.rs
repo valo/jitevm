@@ -1,7 +1,6 @@
-use thiserror::Error;
-use primitive_types::U256;
+use revm::primitives::U256;
 use std::collections::{HashMap, HashSet};
-
+use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EvmOp {
@@ -26,12 +25,12 @@ pub enum EvmOp {
     And,
     Or,
     // Xor,
-    Not,   // 0x19 = 25
+    Not, // 0x19 = 25
     // Byte,
     Shl,
     Shr,
     // Sar,
-    Sha3,   // 0x20 = 32
+    Sha3, // 0x20 = 32
     // Address,
     // Balance,
     Origin,
@@ -92,7 +91,6 @@ pub enum EvmOp {
     Revert,
     Invalid,
     // Selfdestruct,
-
     AugmentedPushJump(usize, U256),
     AugmentedPushJumpi(usize, U256),
 
@@ -173,12 +171,12 @@ impl EvmOp {
                 assert!(*len >= 1);
                 assert!(*len <= 32);
 
-                let mut v = [0u8; 32];
-                val.to_big_endian(&mut v);
+                let v: [u8; U256::BYTES] = val.to_be_bytes();
+
                 let mut w = vec![0x60 + (len - 1) as u8];
-                w.append(&mut v[32-len..32].to_vec());
+                w.append(&mut v[32 - len..32].to_vec());
                 w
-            },
+            }
             Dup1 => vec![0x80],
             Dup2 => vec![0x81],
             Dup3 => vec![0x82],
@@ -220,8 +218,16 @@ impl EvmOp {
             Revert => vec![0xfd],
             Invalid => vec![0xfe],
 
-            AugmentedPushJump(len, val) => Push(*len, *val).to_bytes().into_iter().chain(Jump.to_bytes().into_iter()).collect(),
-            AugmentedPushJumpi(len, val) => Push(*len, *val).to_bytes().into_iter().chain(Jumpi.to_bytes().into_iter()).collect(),
+            AugmentedPushJump(len, val) => Push(*len, *val)
+                .to_bytes()
+                .into_iter()
+                .chain(Jump.to_bytes().into_iter())
+                .collect(),
+            AugmentedPushJumpi(len, val) => Push(*len, *val)
+                .to_bytes()
+                .into_iter()
+                .chain(Jumpi.to_bytes().into_iter())
+                .collect(),
 
             Unknown(opcode) => vec![*opcode],
         }
@@ -242,10 +248,11 @@ impl EvmOp {
             if 1 + len > b.len() {
                 return Err(EvmOpError::ParserErrorIncompleteInstruction);
             } else {
-                let val = U256::from_big_endian(&b[1 .. 1+len]);
-                return Ok((Push(len, val), 1+len));
+                let mut bytes = [0u8; U256::BYTES];
+                bytes[(U256::BYTES - len)..U256::BYTES].copy_from_slice(&b[1..1 + len]);
+                let val = U256::from_be_bytes(bytes);
+                return Ok((Push(len, val), 1 + len));
             }
-
         } else {
             // other opcodes
             match opcode {
@@ -285,7 +292,7 @@ impl EvmOp {
                 0x56 => Ok((Jump, 1)),
                 0x57 => Ok((Jumpi, 1)),
                 0x5b => Ok((Jumpdest, 1)),
-                
+
                 0x80 => Ok((Dup1, 1)),
                 0x81 => Ok((Dup2, 1)),
                 0x82 => Ok((Dup3, 1)),
@@ -325,19 +332,16 @@ impl EvmOp {
                 0xfd => Ok((Revert, 1)),
                 0xfe => Ok((Invalid, 1)),
 
-                _ => {
-                    match mode {
-                        EvmOpParserMode::Lax => Ok((Unknown(opcode), 1)),
-                        EvmOpParserMode::Strict => {
-                            return Err(EvmOpError::ParserErrorUnknownInstruction(opcode));
-                        },
+                _ => match mode {
+                    EvmOpParserMode::Lax => Ok((Unknown(opcode), 1)),
+                    EvmOpParserMode::Strict => {
+                        return Err(EvmOpError::ParserErrorUnknownInstruction(opcode));
                     }
                 },
             }
         }
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvmCode {
@@ -362,13 +366,13 @@ impl EvmCode {
                 Ok((op, offset)) => {
                     ops.push(op);
                     idx += offset;
-                },
+                }
                 Err(EvmOpError::ParserErrorIncompleteInstruction) => {
                     return Err(EvmCodeError::ParserErrorIncompleteInstruction(idx));
-                },
+                }
                 Err(EvmOpError::ParserErrorUnknownInstruction(opcode)) => {
                     return Err(EvmCodeError::ParserErrorUnknownInstruction(idx, opcode));
-                },
+                }
             }
         }
 
@@ -394,18 +398,18 @@ impl EvmCode {
         while idx < self.ops.len() {
             if idx < self.ops.len() - 1 {
                 if let Push(len, val) = self.ops[idx] {
-                    if self.ops[idx+1] == Jump {
+                    if self.ops[idx + 1] == Jump {
                         ops.push(AugmentedPushJump(len, val));
                         idx += 2;
                         continue;
-                    } else if self.ops[idx+1] == Jumpi {
+                    } else if self.ops[idx + 1] == Jumpi {
                         ops.push(AugmentedPushJumpi(len, val));
                         idx += 2;
                         continue;
                     }
                 }
             }
-            
+
             ops.push(self.ops[idx].clone());
             idx += 1;
         }
@@ -417,7 +421,6 @@ impl EvmCode {
         IndexedEvmCode::new_from_evmcode(self.clone())
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct IndexedEvmCode {
@@ -435,8 +438,8 @@ impl IndexedEvmCode {
 
         let mut target = 0;
         for opidx in 0..code.ops.len() {
-            opidx2target.insert(opidx, U256::zero() + target);
-            target2opidx.insert(U256::zero() + target, opidx);
+            opidx2target.insert(opidx, U256::from(target));
+            target2opidx.insert(U256::from(target), opidx);
             target += code.ops[opidx].len();
 
             if code.ops[opidx] == EvmOp::Jumpdest {
@@ -444,6 +447,11 @@ impl IndexedEvmCode {
             }
         }
 
-        Self { code, opidx2target, target2opidx, jumpdests }
+        Self {
+            code,
+            opidx2target,
+            target2opidx,
+            jumpdests,
+        }
     }
 }

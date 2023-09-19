@@ -5,11 +5,10 @@ use inkwell::context::Context;
 use jitevm::code::{EvmCode, EvmOpParserMode};
 use jitevm::jit::{JitEvmEngine, JitEvmEngineError, JitEvmExecutionContext};
 use jitevm::test_data;
-use primitive_types::U256;
 use revm::db::states::plain_account::PlainStorage;
 use revm::db::states::State;
 use revm::primitives::ruint::Uint;
-use revm::primitives::{keccak256, Bytecode, Env, SpecId, B160, B256};
+use revm::primitives::{keccak256, Bytecode, Env, SpecId, B160, B256, U256};
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -34,7 +33,7 @@ fn run_jit_evm(code: &Bytes, calldata: &Bytes) -> Result<Duration, JitEvmEngineE
 
     println!("Benchmark compiled execution ...");
 
-    let mut execution_context_stack = [U256::zero(); 1024];
+    let mut execution_context_stack = [U256::from(0); 1024];
     // TODO: at maximum block size of 30M gas, max memory size is 123169 words = ~128000 words = 4096000 bytes
     let mut execution_context_memory = [0u8; 4096000];
     let mut execution_context_storage = HashMap::<U256, U256>::new();
@@ -123,39 +122,47 @@ fn ops_to_bytecode(ops: Vec<jitevm::code::EvmOp>) -> Bytes {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let tests: Vec<(Bytes, Bytes)> = vec![
+    let tests: Vec<(String, Bytes, Bytes)> = vec![
         // (Code, Call Data)
         (
+            "Fibonacci".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci()),
             Bytes::new(),
         ),
         (
+            "Fibonacci Repetitions".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci_repetitions()),
             Bytes::new(),
         ),
         (
+            "Super Simple 1".to_string(),
             ops_to_bytecode(test_data::get_code_ops_supersimple1()),
             Bytes::new(),
         ),
         (
+            "Super Simple 2".to_string(),
             ops_to_bytecode(test_data::get_code_ops_supersimple2()),
             Bytes::new(),
         ),
         (
+            "Storage 1".to_string(),
             ops_to_bytecode(test_data::get_code_ops_storage1()),
             Bytes::new(),
         ),
         (
+            "MStore MLoad".to_string(),
             ops_to_bytecode(test_data::get_code_ops_mstore_mload()),
             Bytes::new(),
         ),
         (
+            "Snailtracer".to_string(),
             Bytes::from_iter(test_data::get_code_bin_revm_test1()),
             Bytes::from(hex::decode("30627b7c").unwrap()),
         ),
     ];
 
-    for (bytecode, calldata) in tests {
+    for (name, bytecode, calldata) in tests {
+        print!("Running test: {} ... ", name);
         // TESTING REVM INTERPRETER
 
         println!("Benchmarking interpreted execution ...");

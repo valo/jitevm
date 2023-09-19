@@ -1,7 +1,6 @@
 use inkwell::context::Context;
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
-use primitive_types::U256;
 use std::collections::HashMap;
 use std::convert::From;
 use thiserror::Error;
@@ -18,8 +17,7 @@ use inkwell::module::Module;
 use inkwell::types::IntType; //PointerType};
 use inkwell::values::{IntValue, PhiValue}; //PointerValue
 
-#[cfg(test)]
-mod test;
+use revm::primitives::U256;
 
 pub type JitEvmCompiledContract = unsafe extern "C" fn(usize) -> u64;
 const _EVM_JIT_STACK_ALIGN: u32 = 16;
@@ -199,7 +197,7 @@ pub struct JitEvmExecutionContextHolder {
 impl JitEvmExecutionContextHolder {
     pub fn new_from_empty() -> Self {
         Self {
-            stack: [U256::zero(); 1024],
+            stack: [U256::from(0); 1024],
             memory: [0u8; 4096000],
             storage: HashMap::<U256, U256>::new(),
         }
@@ -457,6 +455,17 @@ impl<'ctx> JitEvmEngine<'ctx> {
         0
     }
 
+    pub extern "C" fn callback_exp(exectx: usize, sp: usize) -> u64 {
+        let base: &mut U256 =
+            unsafe { &mut *((sp - 1 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
+        let power: &mut U256 =
+            unsafe { &mut *((sp - 2 * EVM_STACK_ELEMENT_SIZE as usize) as *mut _) };
+
+        *base = base.overflowing_pow(*power).0;
+
+        0
+    }
+
     // Allow to hook up instructions to Rust functions instead of implementing them in LLVM IR
     // This can be used for adding support for complex operations that cannot be implemented in LLVM IR
     //
@@ -495,6 +504,17 @@ impl<'ctx> JitEvmEngine<'ctx> {
             let cb_func = self.module.add_function("callback_sstore", cb_type, None);
             self.execution_engine
                 .add_global_mapping(&cb_func, JitEvmEngine::callback_sstore as usize);
+            cb_func
+        };
+
+        let callback_exp_func = {
+            // EXP
+            let cb_type = self
+                .type_retval
+                .fn_type(&[self.type_ptrint.into(), self.type_ptrint.into()], false);
+            let cb_func = self.module.add_function("callback_exp", cb_type, None);
+            self.execution_engine
+                .add_global_mapping(&cb_func, JitEvmEngine::callback_exp as usize);
             cb_func
         };
 
@@ -624,6 +644,7 @@ impl<'ctx> JitEvmEngine<'ctx> {
             let book = match op {
                 Stop => {
                     let val = self.type_retval.const_int(0, false);
+                    // TODO: change return value to be a pointer to memory, not a value
                     self.builder.build_return(Some(&val));
                     continue; // skip auto-generated jump to next instruction
                 }
@@ -634,11 +655,40 @@ impl<'ctx> JitEvmEngine<'ctx> {
                     let value_int = self
                         .builder
                         .build_int_cast(value, self.type_ptrint, "index");
+                    // TODO: change return value to be a pointer to memory, not a value
+                    self.builder.build_return(Some(&value_int));
+                    continue;
+                }
+                Callvalue => {
+                    let val = self.type_stackel.const_int(0, false);
+                    let book = self.build_stack_push(book, val);
+                    book
+                }
+                Calldatasize => {
+                    let val = self.type_stackel.const_int(0, false);
+                    let book = self.build_stack_push(book, val);
+                    book
+                }
+                Calldataload => {
+                    let val = self.type_stackel.const_int(0, false);
+                    let book = self.build_stack_push(book, val);
+                    book
+                }
+                Revert => {
+                    let (book, offset) = self.build_stack_pop(book);
+                    let (book, _size) = self.build_stack_pop(book);
+                    let (_book, value) = self.build_memory_read(book, offset);
+                    let value_int = self
+                        .builder
+                        .build_int_cast(value, self.type_ptrint, "index");
+                    // TODO: change return value to be a pointer to memory, not a value
                     self.builder.build_return(Some(&value_int));
                     continue;
                 }
                 Push(_, val) => {
-                    let val = self.type_stackel.const_int_arbitrary_precision(&val.0);
+                    let val = self
+                        .type_stackel
+                        .const_int_arbitrary_precision(val.as_limbs());
                     let book = self.build_stack_push(book, val);
                     book
                 }
@@ -725,7 +775,7 @@ impl<'ctx> JitEvmEngine<'ctx> {
 
                         for (j, jmp_i) in code.jumpdests.iter().enumerate() {
                             let jmp_target = code.opidx2target[jmp_i];
-                            let jmp_target = jmp_target.as_u64(); // REMARK: assumes that code cannot exceed 2^64 instructions, probably ok ;)
+                            let jmp_target = jmp_target.try_into().unwrap(); // REMARK: assumes that code cannot exceed 2^64 instructions, probably ok ;)
                             self.builder.position_at_end(jump_table[j].block);
                             let cmp = self.builder.build_int_compare(
                                 IntPredicate::EQ,
@@ -796,7 +846,7 @@ impl<'ctx> JitEvmEngine<'ctx> {
 
                         for (j, jmp_i) in code.jumpdests.iter().enumerate() {
                             let jmp_target = code.opidx2target[jmp_i];
-                            let jmp_target = jmp_target.as_u64(); // REMARK: assumes that code cannot exceed 2^64 instructions, probably ok ;)
+                            let jmp_target = jmp_target.try_into().unwrap(); // REMARK: assumes that code cannot exceed 2^64 instructions, probably ok ;)
                             self.builder.position_at_end(jump_table[j].block);
                             let cmp = self.builder.build_int_compare(
                                 IntPredicate::EQ,
@@ -916,6 +966,20 @@ impl<'ctx> JitEvmEngine<'ctx> {
                 Mod => {
                     op2_llvmnativei256_operation!(self, book, build_int_unsigned_rem)
                 }
+                Exp => {
+                    let _retval = self
+                        .builder
+                        .build_call(
+                            callback_exp_func,
+                            &[book.context.into(), book.sp.into()],
+                            "",
+                        )
+                        .try_as_basic_value()
+                        .left()
+                        .unwrap()
+                        .into_int_value();
+                    book
+                }
                 // Smod => { op2_llvmnativei256_operation!(self, book, build_int_signed_rem) },
                 Eq => {
                     op2_llvmnativei256_compare_operation!(
@@ -986,6 +1050,20 @@ impl<'ctx> JitEvmEngine<'ctx> {
                 // Xor => { op2_llvmnativei256_operation!(self, book, build_xor) },
                 Not => {
                     op1_llvmnativei256_operation!(self, book, build_not)
+                }
+                Shr => {
+                    let (book, shift) = self.build_stack_pop(book);
+                    let (book, value) = self.build_stack_pop(book);
+                    let result = self.builder.build_right_shift(value, shift, false, "");
+                    let book = self.build_stack_push(book, result);
+                    book
+                }
+                Shl => {
+                    let (book, shift) = self.build_stack_pop(book);
+                    let (book, value) = self.build_stack_pop(book);
+                    let result = self.builder.build_left_shift(value, shift, "");
+                    let book = self.build_stack_push(book, result);
+                    book
                 }
                 AugmentedPushJump(_, val) => {
                     if code.jumpdests.is_empty() {
