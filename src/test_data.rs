@@ -75,7 +75,7 @@ pub fn get_code_ops_fibonacci_repetitions() -> Vec<EvmOp> {
         // 13
 
         // input to the program (which fib number we want)
-        Push(1, U256::from(55 - 2)), // 5 (needs to be >= 3)
+        Push(1, U256::from(53)), // 5 (needs to be >= 3)
         // 1st/2nd fib number
         Push(1, U256::from(0)),
         Push(1, U256::from(1)),
