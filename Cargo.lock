@@ -310,6 +310,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm-dynamic"
+version = "0.1.0"
+dependencies = [
+ "revm",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,6 +471,7 @@ name = "jitevm"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "evm-dynamic",
  "eyre",
  "hex",
  "inkwell",
@@ -868,7 +876,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 [[package]]
 name = "revm"
 version = "3.3.0"
-source = "git+https://github.com/bluealloy/revm#70cf969a25a45e3bb4e503926297d61a90c7eec5"
+source = "git+https://github.com/bluealloy/revm?branch=temp#eba8bfbaf9d422375fb389e95c4b646102b1eb97"
 dependencies = [
  "auto_impl",
  "revm-interpreter",
@@ -878,7 +886,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "1.1.2"
-source = "git+https://github.com/bluealloy/revm#70cf969a25a45e3bb4e503926297d61a90c7eec5"
+source = "git+https://github.com/bluealloy/revm?branch=temp#eba8bfbaf9d422375fb389e95c4b646102b1eb97"
 dependencies = [
  "derive_more",
  "enumn",
@@ -889,7 +897,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "2.0.3"
-source = "git+https://github.com/bluealloy/revm#70cf969a25a45e3bb4e503926297d61a90c7eec5"
+source = "git+https://github.com/bluealloy/revm?branch=temp#eba8bfbaf9d422375fb389e95c4b646102b1eb97"
 dependencies = [
  "c-kzg",
  "hex",
@@ -907,7 +915,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "1.1.2"
-source = "git+https://github.com/bluealloy/revm#70cf969a25a45e3bb4e503926297d61a90c7eec5"
+source = "git+https://github.com/bluealloy/revm?branch=temp#eba8bfbaf9d422375fb389e95c4b646102b1eb97"
 dependencies = [
  "auto_impl",
  "bitflags 2.4.0",

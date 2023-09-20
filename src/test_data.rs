@@ -7,7 +7,7 @@ pub fn get_code_ops_fibonacci() -> Vec<EvmOp> {
 
     vec![
         // input to the program (which fib number we want)
-        Push(2, U256::from(15000)), // 5 (needs to be >= 3)
+        Push(2, U256::from(20000)), // 5 (needs to be >= 3)
         // 1st/2nd fib number
         Push(1, U256::from(0)),
         Push(1, U256::from(1)),

@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use evm_dynamic::fib;
 use eyre::Result;
 use hex::encode;
 use inkwell::context::Context;
@@ -7,10 +8,16 @@ use jitevm::jit::{JitEvmEngine, JitEvmEngineError, JitEvmExecutionContext};
 use jitevm::test_data;
 use revm::db::states::plain_account::PlainStorage;
 use revm::db::states::State;
+use revm::db::EmptyDBTyped;
+use revm::inspectors::NoOpInspector;
+use revm::interpreter::{CallContext, CallScheme, Contract, Interpreter};
+use revm::precompile::Precompiles;
 use revm::primitives::ruint::Uint;
-use revm::primitives::{keccak256, Bytecode, Env, SpecId, B160, B256, U256};
+use revm::primitives::{keccak256, Bytecode, Env, LatestSpec, SpecId, B160, B256, U256};
+use revm::{to_precompile_id, EVMImpl};
 
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::error::Error;
 use std::time::{Duration, Instant};
 
@@ -104,7 +111,7 @@ fn run_revm_interpreter(code: &Bytes, calldata: &Bytes) -> Duration {
     let timer = Instant::now();
 
     let result = evm.transact_commit().unwrap();
-    println!("Result: {:?}", result);
+    println!("Result: {:?}", result.output().unwrap());
     println!("Success: {:?}", result.is_success());
     println!(
         "Result: {:?}",
@@ -115,9 +122,86 @@ fn run_revm_interpreter(code: &Bytes, calldata: &Bytes) -> Duration {
     return timer.elapsed();
 }
 
+fn run_jit_rust(code: &Bytes, calldata: &Bytes) -> Duration {
+    // println!("Code: {:?}", encode(&code));
+    let mut env = Env::default();
+    // cfg env. SpecId is set down the road
+    env.cfg.chain_id = 1; // for mainnet
+
+    // block env
+    env.block.number = Uint::from(1);
+    env.block.coinbase = B160::from(0);
+    env.block.timestamp = Uint::from(0);
+    env.block.gas_limit = Uint::from(500_000_000);
+    env.block.basefee = Uint::from(0);
+    env.block.difficulty = Uint::from(0);
+    // after the Merge prevrandao replaces mix_hash field in block and replaced difficulty opcode in EVM.
+    env.block.prevrandao = Some(B256::from(B160::from(0)));
+
+    //tx env
+    env.tx.caller = B160::from(1);
+    env.tx.gas_price = Uint::from(0);
+    env.tx.gas_priority_fee = Some(Uint::from(0));
+    env.tx.gas_limit = 500_000_000;
+    env.cfg.spec_id = SpecId::LATEST;
+    env.tx.data = calldata.clone();
+    env.tx.value = Uint::from(0);
+    env.tx.transact_to = revm::primitives::TransactTo::Call(B160::from(0));
+
+    let mut state = State::builder().with_bundle_update().build();
+    let code_hash = keccak256(&code);
+    let acc_info = revm::primitives::AccountInfo {
+        balance: Uint::from(0),
+        code_hash: code_hash,
+        code: Some(Bytecode::new_raw(code.clone())),
+        nonce: 0,
+    };
+    state.insert_account_with_storage(B160::from(0), acc_info, PlainStorage::new());
+
+    let mut evm = revm::new();
+    evm.database(&mut state);
+    evm.env = env.clone();
+
+    let timer = Instant::now();
+
+    let context = CallContext {
+        caller: env.tx.caller,
+        address: B160::from(0),
+        code_address: B160::from(0),
+        apparent_value: env.tx.value,
+        scheme: CallScheme::Call,
+    };
+
+    let contract = Box::new(Contract::new_with_context(
+        calldata.clone(),
+        Bytecode::new_raw(code.clone()),
+        code_hash,
+        &context,
+    ));
+
+    let mut inspector = NoOpInspector;
+    let mut host = Box::new(
+        EVMImpl::<LatestSpec, State<EmptyDBTyped<Infallible>>, false>::new(
+            &mut state,
+            &mut env,
+            &mut inspector,
+            Precompiles::new(to_precompile_id(SpecId::LATEST)).clone(),
+        ),
+    );
+    let mut interpreter = Box::new(Interpreter::new(contract, u64::MAX, true));
+
+    fib(interpreter.as_mut(), &mut *host);
+
+    println!("Result: {:?}", encode(interpreter.return_value()));
+    println!("Result: {:?}", interpreter.instruction_result);
+
+    return timer.elapsed();
+}
+
 fn ops_to_bytecode(ops: Vec<jitevm::code::EvmOp>) -> Bytes {
     let code = EvmCode { ops: ops };
     let bytecode = Bytes::from_iter(code.to_bytes());
+
     return bytecode;
 }
 
@@ -129,36 +213,36 @@ fn main() -> Result<(), Box<dyn Error>> {
             ops_to_bytecode(test_data::get_code_ops_fibonacci()),
             Bytes::new(),
         ),
-        (
-            "Fibonacci Repetitions".to_string(),
-            ops_to_bytecode(test_data::get_code_ops_fibonacci_repetitions()),
-            Bytes::new(),
-        ),
-        (
-            "Super Simple 1".to_string(),
-            ops_to_bytecode(test_data::get_code_ops_supersimple1()),
-            Bytes::new(),
-        ),
-        (
-            "Super Simple 2".to_string(),
-            ops_to_bytecode(test_data::get_code_ops_supersimple2()),
-            Bytes::new(),
-        ),
-        (
-            "Storage 1".to_string(),
-            ops_to_bytecode(test_data::get_code_ops_storage1()),
-            Bytes::new(),
-        ),
-        (
-            "MStore MLoad".to_string(),
-            ops_to_bytecode(test_data::get_code_ops_mstore_mload()),
-            Bytes::new(),
-        ),
-        (
-            "Snailtracer".to_string(),
-            Bytes::from_iter(test_data::get_code_bin_revm_test1()),
-            Bytes::from(hex::decode("30627b7c").unwrap()),
-        ),
+        // (
+        //     "Fibonacci Repetitions".to_string(),
+        //     ops_to_bytecode(test_data::get_code_ops_fibonacci_repetitions()),
+        //     Bytes::new(),
+        // ),
+        // (
+        //     "Super Simple 1".to_string(),
+        //     ops_to_bytecode(test_data::get_code_ops_supersimple1()),
+        //     Bytes::new(),
+        // ),
+        // (
+        //     "Super Simple 2".to_string(),
+        //     ops_to_bytecode(test_data::get_code_ops_supersimple2()),
+        //     Bytes::new(),
+        // ),
+        // (
+        //     "Storage 1".to_string(),
+        //     ops_to_bytecode(test_data::get_code_ops_storage1()),
+        //     Bytes::new(),
+        // ),
+        // (
+        //     "MStore MLoad".to_string(),
+        //     ops_to_bytecode(test_data::get_code_ops_mstore_mload()),
+        //     Bytes::new(),
+        // ),
+        // (
+        //     "Snailtracer".to_string(),
+        //     Bytes::from_iter(test_data::get_code_bin_revm_test1()),
+        //     Bytes::from(hex::decode("30627b7c").unwrap()),
+        // ),
     ];
 
     for (name, bytecode, calldata) in tests {
@@ -175,9 +259,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         let jit_runtime = run_jit_evm(&bytecode, &calldata)?;
         println!("Runtime: {:.2?}", jit_runtime);
 
+        // TESTING RUST AOT COMPILATION
+
+        println!("Benchmarking Rust AOT compilation ...");
+        let aot_runtime = run_jit_rust(&bytecode, &calldata);
+        println!("Runtime: {:.2?}", aot_runtime);
+
         println!(
             "Speedup: {:.2}x",
-            revm_runtime.as_secs_f64() / jit_runtime.as_secs_f64()
+            revm_runtime.as_secs_f64() / aot_runtime.as_secs_f64()
         );
     }
     Ok(())
