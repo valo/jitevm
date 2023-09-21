@@ -1,7 +1,7 @@
 use revm::interpreter::{
     instructions::{
         arithmetic, bitwise,
-        control::{self, jumpi_without_pc},
+        control::{self},
         memory, stack,
     },
     Host, InstructionResult, Interpreter,

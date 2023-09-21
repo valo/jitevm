@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, Criterion};
 use evm_dynamic::{fib, fib_repeated};
-use jitevm::{ops_to_bytecode, run_jit_evm, run_jit_rust, run_revm_interpreter, test_data};
+use jitevm::{ops_to_bytecode, run_jit_rust, run_revm_interpreter, test_data};
 
 pub fn fib_benchmark(c: &mut Criterion) {
     let bytecode = ops_to_bytecode(test_data::get_code_ops_fibonacci());
