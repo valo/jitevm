@@ -2,7 +2,7 @@ use std::error::Error;
 
 use bytes::Bytes;
 use evm_dynamic::{fib, fib_repeated};
-use jitevm::{ops_to_bytecode, run_jit_evm, run_jit_rust, run_revm_interpreter, test_data};
+use jitevm::{ops_to_bytecode, run_jit_rust, run_revm_interpreter, test_data};
 use revm::interpreter::{Host, Interpreter};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -17,13 +17,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             "Fibonacci".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci()),
             Bytes::new(),
-            fib,
+            fib::<true>,
         ),
         (
             "Fibonacci Repetitions".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci_repetitions()),
             Bytes::new(),
-            fib_repeated,
+            fib_repeated::<true>,
         ),
     ];
 
@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Benchmarking interpreted execution ...");
         let (revm_runtime, revm_gas_used) = run_revm_interpreter(&bytecode, &calldata);
         println!("Runtime: {:.2?}", revm_runtime);
+        println!("Gas used: {}", revm_gas_used);
 
         // TESTING JIT
 
@@ -51,6 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Benchmarking Rust AOT compilation ...");
         let (aot_runtime, aot_gas_used) = run_jit_rust(&bytecode, &calldata, jit_fn);
         println!("Runtime: {:.2?}", aot_runtime);
+        println!("Gas used: {}", aot_gas_used);
 
         assert!(revm_gas_used == (aot_gas_used + 21_000));
 

@@ -7,12 +7,13 @@ use crate::code::{EvmCode, EvmOpParserMode};
 use crate::jit::{JitEvmEngine, JitEvmEngineError, JitEvmExecutionContext};
 use bytes::Bytes;
 use eyre::Result;
-use hex::encode;
+
 use inkwell::context::Context;
 use revm::db::states::plain_account::PlainStorage;
 use revm::db::states::State;
 use revm::db::EmptyDBTyped;
 use revm::inspectors::NoOpInspector;
+
 use revm::interpreter::{CallContext, CallScheme, Contract, Host, Interpreter};
 use revm::precompile::Precompiles;
 use revm::primitives::ruint::Uint;

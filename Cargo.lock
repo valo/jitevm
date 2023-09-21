@@ -1106,7 +1106,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 [[package]]
 name = "revm"
 version = "3.3.0"
-source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#437f1a9ea75d4810ac54a6253c864c1f29bcd0bc"
+source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#eae26cdf9c1601b24794e3474e7225729fccc2d0"
 dependencies = [
  "auto_impl",
  "revm-interpreter",
@@ -1116,7 +1116,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "1.1.2"
-source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#437f1a9ea75d4810ac54a6253c864c1f29bcd0bc"
+source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#eae26cdf9c1601b24794e3474e7225729fccc2d0"
 dependencies = [
  "derive_more",
  "enumn",
@@ -1127,7 +1127,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "2.0.3"
-source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#437f1a9ea75d4810ac54a6253c864c1f29bcd0bc"
+source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#eae26cdf9c1601b24794e3474e7225729fccc2d0"
 dependencies = [
  "c-kzg",
  "hex",
@@ -1145,7 +1145,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "1.1.2"
-source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#437f1a9ea75d4810ac54a6253c864c1f29bcd0bc"
+source = "git+https://github.com/valo/revm?branch=evm-compilation-operations#eae26cdf9c1601b24794e3474e7225729fccc2d0"
 dependencies = [
  "auto_impl",
  "bitflags 2.4.0",
