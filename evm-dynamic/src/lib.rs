@@ -9,7 +9,7 @@ use revm::interpreter::{
 
 macro_rules! check_instruction_result {
     ($interpreter:expr) => {
-        if SAFE && $interpreter.instruction_result != InstructionResult::Continue {
+        if CHECKED && $interpreter.instruction_result != InstructionResult::Continue {
             return;
         }
     };
@@ -28,7 +28,7 @@ fn print_stack(interpreter: &mut Interpreter) {
     );
 }
 
-pub fn fib<const SAFE: bool>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+pub fn fib<const CHECKED: bool>(interpreter: &mut Interpreter, host: &mut dyn Host) {
     let mut jump: usize = 0;
 
     loop {
@@ -115,7 +115,7 @@ pub fn fib<const SAFE: bool>(interpreter: &mut Interpreter, host: &mut dyn Host)
     }
 }
 
-pub fn fib_repeated<const SAFE: bool>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+pub fn fib_repeated<const CHECKED: bool>(interpreter: &mut Interpreter, host: &mut dyn Host) {
     let mut jump = 0;
 
     loop {
