@@ -1,5 +1,6 @@
 pub mod code;
 pub mod constants;
+pub mod generator;
 pub mod jit;
 pub mod test_data;
 
@@ -18,7 +19,7 @@ use revm::interpreter::{CallContext, CallScheme, Contract, Host, Interpreter};
 use revm::precompile::Precompiles;
 use revm::primitives::ruint::Uint;
 use revm::primitives::{keccak256, Bytecode, Env, LatestSpec, SpecId, B160, B256, U256};
-use revm::{to_precompile_id, EVMImpl};
+use revm::{to_precompile_id, EVMImpl, Transact};
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -193,7 +194,10 @@ pub fn run_jit_rust(
             Precompiles::new(to_precompile_id(SpecId::LATEST)).clone(),
         ),
     );
-    let mut interpreter = Box::new(Interpreter::new(contract, u64::MAX, true));
+    host.preverify_transaction().unwrap();
+    host.load_account(context.address);
+
+    let mut interpreter = Box::new(Interpreter::new(contract, u64::MAX, false));
 
     let timer = Instant::now();
 

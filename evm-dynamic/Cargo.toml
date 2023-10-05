@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 revm = { git = "https://github.com/valo/revm", branch = "evm-compilation-operations" }
+
+[lib]
+crate-type = ["dylib"]
