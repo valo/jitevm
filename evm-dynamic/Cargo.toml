@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hex = { version = "0.4" }
 revm = { git = "https://github.com/valo/revm", branch = "evm-compilation-operations" }
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["dylib", "lib"]

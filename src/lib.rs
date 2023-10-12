@@ -7,6 +7,7 @@ pub mod test_data;
 use crate::code::{EvmCode, EvmOpParserMode};
 use crate::jit::{JitEvmEngine, JitEvmEngineError, JitEvmExecutionContext};
 use bytes::Bytes;
+use evm_dynamic::primitives::CompiledEVM;
 use eyre::Result;
 
 use inkwell::context::Context;
@@ -129,7 +130,7 @@ pub fn run_revm_interpreter(code: &Bytes, calldata: &Bytes) -> (Duration, u64) {
 pub fn run_jit_rust(
     code: &Bytes,
     calldata: &Bytes,
-    f: for<'a, 'b> fn(&'a mut Interpreter, &'b mut (dyn Host + 'b)),
+    compiled_evm_code: &Box<dyn CompiledEVM<true, LatestSpec>>,
 ) -> (Duration, u64) {
     // println!("Code: {:?}", encode(&code));
     let mut env = Env::default();
@@ -201,7 +202,7 @@ pub fn run_jit_rust(
 
     let timer = Instant::now();
 
-    f(interpreter.as_mut(), &mut *host);
+    compiled_evm_code.call(interpreter.as_mut(), &mut *host);
 
     // println!("Result: {:?}", encode(interpreter.return_value()));
     // println!("Result: {:?}", interpreter.instruction_result);

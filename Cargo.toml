@@ -21,6 +21,11 @@ evm-dynamic = { path = "evm-dynamic", package = "evm-dynamic" }
 [dev-dependencies]
 criterion = "0.3"
 
+[build-dependencies]
+revm = { git = "https://github.com/valo/revm", branch = "evm-compilation-operations" }
+hex = { version = "0.4" }
+
+
 [[bench]]
 name = "evm_bench"
 harness = false

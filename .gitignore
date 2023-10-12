@@ -2,3 +2,6 @@
 jit_*.asm
 jit_*.ll
 .vscode
+evm-dynamic/src/evm_*.rs
+evm-dynamic/src/lib.rs
+evm_code

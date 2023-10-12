@@ -3,9 +3,6 @@ use std::{
     io::{Error, Write},
 };
 
-use hex::encode;
-use revm::primitives::{keccak256, Bytecode};
-
 fn format_slice(slice: &[u8]) -> String {
     let result = slice
         .iter()
@@ -17,7 +14,7 @@ fn format_slice(slice: &[u8]) -> String {
 
 fn output_push(
     file: &mut File,
-    code: &Bytecode,
+    code: &[u8],
     instruction_index: &mut usize,
     size: usize,
 ) -> Result<(), Error> {
@@ -26,11 +23,7 @@ fn output_push(
         format!(
             "                stack::push_slice::<{}>(interpreter, host, &{});\n",
             size,
-            format_slice(
-                &code
-                    .bytecode
-                    .slice(*instruction_index..(*instruction_index + size))
-            )
+            format_slice(&code[*instruction_index..(*instruction_index + size)])
         )
         .as_bytes(),
     )?;
@@ -39,10 +32,7 @@ fn output_push(
     Ok(())
 }
 
-pub fn generate_rust_code(code: &Bytecode) -> Result<(), Error> {
-    let hashcode = encode(keccak256(&code.original_bytes()).as_bytes());
-    let mut file = File::create(format!("evm-dynamic/src/evm_{}.rs", hashcode)).unwrap();
-
+pub fn convert_evm_to_rust(file: &mut File, code: &[u8]) -> Result<(), Error> {
     file.write_all(
         b"use revm::interpreter::{
     instructions::{
@@ -53,9 +43,13 @@ pub fn generate_rust_code(code: &Bytecode) -> Result<(), Error> {
     primitives::Spec,
     Host, InstructionResult, Interpreter,
 };
+use crate::{check_instruction_result, primitives::CompiledEVM};
+
     
-use crate::check_instruction_result;
-pub fn call<const CHECKED: bool, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+pub struct EVMCode;
+
+impl<const CHECKED: bool, SPEC: Spec> CompiledEVM<CHECKED, SPEC> for EVMCode {
+    fn call(&self, interpreter: &mut Interpreter, host: &mut dyn Host) {
     let mut jump: usize = 0;
     
     loop {
@@ -65,7 +59,7 @@ pub fn call<const CHECKED: bool, SPEC: Spec>(interpreter: &mut Interpreter, host
 
     let mut instruction_index: usize = 0;
     while instruction_index < code.len() {
-        let current_op = code.bytecode[instruction_index];
+        let current_op = code[instruction_index];
 
         match current_op {
             0x00 => {
@@ -373,100 +367,100 @@ pub fn call<const CHECKED: bool, SPEC: Spec>(interpreter: &mut Interpreter, host
                 file.write_all(b"                check_instruction_result!(interpreter);\n")?;
             }
             0x60 => {
-                output_push(&mut file, code, &mut instruction_index, 1)?;
+                output_push(file, code, &mut instruction_index, 1)?;
             }
             0x61 => {
-                output_push(&mut file, code, &mut instruction_index, 2)?;
+                output_push(file, code, &mut instruction_index, 2)?;
             }
             0x62 => {
-                output_push(&mut file, code, &mut instruction_index, 3)?;
+                output_push(file, code, &mut instruction_index, 3)?;
             }
             0x63 => {
-                output_push(&mut file, code, &mut instruction_index, 4)?;
+                output_push(file, code, &mut instruction_index, 4)?;
             }
             0x64 => {
-                output_push(&mut file, code, &mut instruction_index, 5)?;
+                output_push(file, code, &mut instruction_index, 5)?;
             }
             0x65 => {
-                output_push(&mut file, code, &mut instruction_index, 6)?;
+                output_push(file, code, &mut instruction_index, 6)?;
             }
             0x66 => {
-                output_push(&mut file, code, &mut instruction_index, 7)?;
+                output_push(file, code, &mut instruction_index, 7)?;
             }
             0x67 => {
-                output_push(&mut file, code, &mut instruction_index, 8)?;
+                output_push(file, code, &mut instruction_index, 8)?;
             }
             0x68 => {
-                output_push(&mut file, code, &mut instruction_index, 9)?;
+                output_push(file, code, &mut instruction_index, 9)?;
             }
             0x69 => {
-                output_push(&mut file, code, &mut instruction_index, 10)?;
+                output_push(file, code, &mut instruction_index, 10)?;
             }
             0x6A => {
-                output_push(&mut file, code, &mut instruction_index, 11)?;
+                output_push(file, code, &mut instruction_index, 11)?;
             }
             0x6B => {
-                output_push(&mut file, code, &mut instruction_index, 12)?;
+                output_push(file, code, &mut instruction_index, 12)?;
             }
             0x6C => {
-                output_push(&mut file, code, &mut instruction_index, 13)?;
+                output_push(file, code, &mut instruction_index, 13)?;
             }
             0x6D => {
-                output_push(&mut file, code, &mut instruction_index, 14)?;
+                output_push(file, code, &mut instruction_index, 14)?;
             }
             0x6E => {
-                output_push(&mut file, code, &mut instruction_index, 15)?;
+                output_push(file, code, &mut instruction_index, 15)?;
             }
             0x6F => {
-                output_push(&mut file, code, &mut instruction_index, 16)?;
+                output_push(file, code, &mut instruction_index, 16)?;
             }
             0x70 => {
-                output_push(&mut file, code, &mut instruction_index, 17)?;
+                output_push(file, code, &mut instruction_index, 17)?;
             }
             0x71 => {
-                output_push(&mut file, code, &mut instruction_index, 18)?;
+                output_push(file, code, &mut instruction_index, 18)?;
             }
             0x72 => {
-                output_push(&mut file, code, &mut instruction_index, 19)?;
+                output_push(file, code, &mut instruction_index, 19)?;
             }
             0x73 => {
-                output_push(&mut file, code, &mut instruction_index, 20)?;
+                output_push(file, code, &mut instruction_index, 20)?;
             }
             0x74 => {
-                output_push(&mut file, code, &mut instruction_index, 21)?;
+                output_push(file, code, &mut instruction_index, 21)?;
             }
             0x75 => {
-                output_push(&mut file, code, &mut instruction_index, 22)?;
+                output_push(file, code, &mut instruction_index, 22)?;
             }
             0x76 => {
-                output_push(&mut file, code, &mut instruction_index, 23)?;
+                output_push(file, code, &mut instruction_index, 23)?;
             }
             0x77 => {
-                output_push(&mut file, code, &mut instruction_index, 24)?;
+                output_push(file, code, &mut instruction_index, 24)?;
             }
             0x78 => {
-                output_push(&mut file, code, &mut instruction_index, 25)?;
+                output_push(file, code, &mut instruction_index, 25)?;
             }
             0x79 => {
-                output_push(&mut file, code, &mut instruction_index, 26)?;
+                output_push(file, code, &mut instruction_index, 26)?;
             }
             0x7A => {
-                output_push(&mut file, code, &mut instruction_index, 27)?;
+                output_push(file, code, &mut instruction_index, 27)?;
             }
             0x7B => {
-                output_push(&mut file, code, &mut instruction_index, 28)?;
+                output_push(file, code, &mut instruction_index, 28)?;
             }
             0x7C => {
-                output_push(&mut file, code, &mut instruction_index, 29)?;
+                output_push(file, code, &mut instruction_index, 29)?;
             }
             0x7D => {
-                output_push(&mut file, code, &mut instruction_index, 30)?;
+                output_push(file, code, &mut instruction_index, 30)?;
             }
             0x7E => {
-                output_push(&mut file, code, &mut instruction_index, 31)?;
+                output_push(file, code, &mut instruction_index, 31)?;
             }
             0x7F => {
-                output_push(&mut file, code, &mut instruction_index, 32)?;
+                output_push(file, code, &mut instruction_index, 32)?;
             }
             0x80 => {
                 file.write_all(b"                stack::dup::<1>(interpreter, host);\n")?;
@@ -671,8 +665,9 @@ pub fn call<const CHECKED: bool, SPEC: Spec>(interpreter: &mut Interpreter, host
         instruction_index += 1;
     }
     file.write_all(
-        b"            }
-            _ => panic!(\"Invalid jump destination\"),
+        b"               }
+                _ => panic!(\"Invalid jump destination\"),
+            }
         }
     }
 }",

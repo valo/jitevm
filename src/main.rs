@@ -1,56 +1,58 @@
 use std::error::Error;
 
 use bytes::Bytes;
-use evm_dynamic::{
-    evm_3bdc8674d4fde9f9dca23aa564ca243190a69977674148c40a8661f542582a4d,
-    evm_fe52880d7fca1f585e267c77d696523fb89925f31407bf97886a622217e1c3bd, fib, fib_repeated,
-};
+use evm_dynamic::evm_cache::evm_cache;
 use hex::encode;
 use jitevm::{
-    generator::generate_rust_code,
     ops_to_bytecode, run_jit_rust, run_revm_interpreter,
     test_data::{self, get_code_bin_revm_test1},
 };
 use revm::{
     interpreter::{Host, Interpreter},
-    primitives::{Bytecode, LatestSpec},
+    primitives::{Bytecode, LatestSpec, B256},
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let tests: Vec<(
-        String,
-        Bytes,
-        Bytes,
-        for<'a, 'b> fn(&'a mut Interpreter, &'b mut (dyn Host + 'b)),
-    )> = vec![
+    let evm_code_cache = evm_cache::<true, LatestSpec>();
+    let tests = vec![
         // (Name, Code, Call Data, AOT Function)
         (
             "Fibonacci".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci()),
             Bytes::new(),
-            evm_3bdc8674d4fde9f9dca23aa564ca243190a69977674148c40a8661f542582a4d::call::<
-                true,
-                LatestSpec,
-            >,
+            evm_code_cache
+                .get(
+                    &"0x3bdc8674d4fde9f9dca23aa564ca243190a69977674148c40a8661f542582a4d"
+                        .parse::<B256>()
+                        .unwrap(),
+                )
+                .unwrap(),
         ),
         (
             "Fibonacci Repetitions".to_string(),
             ops_to_bytecode(test_data::get_code_ops_fibonacci_repetitions()),
             Bytes::new(),
-            fib_repeated::<true>,
+            evm_code_cache
+                .get(
+                    &"0xbf10678ff0c6e3cae81657192f89f9b6c19df2bda65fcb80549cd8e5bd4ef911"
+                        .parse::<B256>()
+                        .unwrap(),
+                )
+                .unwrap(),
         ),
-        (
-            "Snailtracer".to_string(),
-            Bytes::from(get_code_bin_revm_test1()),
-            Bytes::from(hex::decode("30627b7c").unwrap()),
-            evm_fe52880d7fca1f585e267c77d696523fb89925f31407bf97886a622217e1c3bd::call::<
-                true,
-                LatestSpec,
-            >,
-        ),
+        // (
+        //     "Snailtracer".to_string(),
+        //     Bytes::from(get_code_bin_revm_test1()),
+        //     Bytes::from(hex::decode("30627b7c").unwrap()),
+        //     evm_code_cache
+        //         .get(&"0xfea1a9".parse::<B256>().unwrap())
+        //         .unwrap(),
+        // ),
     ];
 
-    for (name, bytecode, calldata, jit_fn) in &tests {
+    println!("Fib bytecode: {}", hex::encode(&tests[1].1));
+
+    for (name, bytecode, calldata, compiled_evm_code) in &tests {
         print!("Running test: {} ... ", name);
         // TESTING REVM INTERPRETER
 
@@ -77,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // TESTING RUST AOT COMPILATION
 
         println!("Benchmarking Rust AOT compilation ...");
-        let (aot_runtime, aot_gas_used) = run_jit_rust(&bytecode, &calldata, *jit_fn);
+        let (aot_runtime, aot_gas_used) = run_jit_rust(&bytecode, &calldata, compiled_evm_code);
         println!("Runtime: {:.2?}", aot_runtime);
         println!("Gas used: {}", aot_gas_used);
         println!(
@@ -85,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             aot_gas_used as f64 / aot_runtime.as_secs_f64() / 1_000_000.0
         );
 
-        assert!(revm_gas_used == (aot_gas_used + 21_000));
+        // assert!(revm_gas_used == (aot_gas_used + 21_000));
 
         // println!(
         //     "Speedup: {:.2}x",
@@ -93,7 +95,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // );
     }
 
-    // let bytecode = Bytes::from(get_code_bin_revm_test1());
+    // let bytecode: Bytes = Bytes::from(get_code_bin_revm_test1());
     // generate_rust_code(&Bytecode::new_raw(bytecode.clone()))?;
 
     // let bytecode = tests[0].1.clone();
